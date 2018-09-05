@@ -38,7 +38,6 @@ class CrmMakeSale(models.TransientModel):
         linked_brs = case.project_id and case.project_id.br_ids or []
         if not linked_brs:
             raise ValidationError(
-                _('Error!'),
                 _("""There is no available business requirement to
                     make sale order!"""))
         for br in linked_brs:
@@ -59,7 +58,7 @@ class CrmMakeSale(models.TransientModel):
                     'product_uos_qty': br_line.qty,
                     'product_uom': br_line.uom_id.id,
                     'product_uos': br_line.uom_id.id,
-                    'price_unit': br_line.unit_price,
+                    'price_unit': br_line.sale_price_unit,
                     'tax_id': [(6, 0, taxes.ids)],
                 }
                 lines.append(vals)

@@ -1,6 +1,7 @@
 [![Runbot Status](https://runbot.odoo-community.org/runbot/badge/flat/222/8.0.svg)](https://runbot.odoo-community.org/runbot/repo/github-com-oca-business-requirement-222)
 [![Build Status](https://travis-ci.org/OCA/business-requirement.svg?branch=8.0)](https://travis-ci.org/OCA/business-requirement)
-[![Coverage Status](https://coveralls.io/repos/OCA/business-requirement/badge.svg?branch=8.0&service=github)](https://coveralls.io/github/OCA/business-requirement?branch=8.0)
+[![codecov](https://codecov.io/gh/OCA/business-requirement/branch/8.0/graph/badge.svg)](https://codecov.io/gh/OCA/business-requirement)
+
 
 # Business Requirement Management
 
@@ -12,18 +13,25 @@ So a Quotation can have an estimation supported by a BR analysis, and Project Ta
 
 
 [//]: # (addons)
+
 Available addons
 ----------------
 addon | version | summary
 --- | --- | ---
-[business_requirement](business_requirement/) | 8.0.5.1.1 | Manage the Business Requirements (stories, scenarios, gaps and test cases) for your customers
-[business_requirement_deliverable](business_requirement_deliverable/) | 8.0.4.0.0 | Manage the Business Requirement Deliverables and Resources for your customers
+[business_requirement](business_requirement/) | 8.0.5.1.3 | Manage the Business Requirements (stories, scenarios, gaps and test cases) for your customers
+[business_requirement_deliverable](business_requirement_deliverable/) | 8.0.5.0.1 | Manage the Business Requirement Deliverables and Resources for your customers
 [business_requirement_deliverable_categ](business_requirement_deliverable_categ/) | 8.0.3.0.2 | Adds Task Categories to your Business Requirement Resources
-[business_requirement_deliverable_cost](business_requirement_deliverable_cost/) | 8.0.1.0.1 | Control the cost of your Business Requirements
+[business_requirement_deliverable_cost](business_requirement_deliverable_cost/) | 8.0.2.0.0 | Control the cost of your Business Requirements
 [business_requirement_deliverable_crm](business_requirement_deliverable_crm/) | 8.0.1.0.1 | Create your sales quotations directly from the Business Requirements deliverables
-[business_requirement_deliverable_default](business_requirement_deliverable_default/) | 8.0.2.0.2 | Manage default resource lines in your deliverable sales package
-[business_requirement_deliverable_project](business_requirement_deliverable_project/) | 8.0.4.0.4 | Create projects and tasks directly from the Business Requirement and Resources lines
-[business_requirement_deliverable_report](business_requirement_deliverable_report/) | 8.0.5.0.1 | Print the Business Requirement Document for your customers
+[business_requirement_deliverable_project](business_requirement_deliverable_project/) | 8.0.4.0.6 | Create projects and tasks directly from the Business Requirement and Resources lines
+[business_requirement_deliverable_project_categ](business_requirement_deliverable_project_categ/) | 8.0.1.0.0 | Include category on generating project
+[business_requirement_deliverable_project_task_categ](business_requirement_deliverable_project_task_categ/) | 8.0.1.0.2 | Adds Task Categories to your Business Requirement Resources
+[business_requirement_deliverable_report](business_requirement_deliverable_report/) | 8.0.5.0.2 | Print the Business Requirement Document for your customers
+[business_requirement_deliverable_resource_template](business_requirement_deliverable_resource_template/) | 8.0.1.0.1 | Manage default resource lines in your deliverable sales package from product template
+[business_requirement_deliverable_resource_template_categ](business_requirement_deliverable_resource_template_categ/) | 8.0.1.0.0 | Manage default resource lines categories in your deliverable templates
+[business_requirement_earned_value](business_requirement_earned_value/) | 8.0.1.0.0 | Manage the Earned Value for your customers
+[business_requirement_etherpad](business_requirement_etherpad/) | 8.0.1.0.1 | Manage the Business Requirements Notes via Etherpad
+[business_requirement_from_support](business_requirement_from_support/) | 8.0.1.0.0 | Generate Business Requirements from issues
 
 [//]: # (end addons)
 

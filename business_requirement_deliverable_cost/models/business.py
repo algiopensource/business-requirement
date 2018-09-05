@@ -8,28 +8,57 @@ class BusinessRequirementResource(models.Model):
     _inherit = "business.requirement.resource"
 
     sale_price_unit = fields.Float(
-        string='Sales Price',
-        groups='business_requirement_deliverable_cost.'
-        'group_business_requirement_estimation',
+        string='Sales Price'
     )
     sale_price_total = fields.Float(
         compute='_compute_sale_price_total',
         string='Total Revenue',
-        groups='business_requirement_deliverable_cost.'
-        'group_business_requirement_estimation',
+        store=True
     )
     unit_price = fields.Float(
-        string='Cost Price',
-        groups='business_requirement_deliverable_cost.'
-        'group_business_requirement_cost_control',
+        string='Cost Price'
     )
     price_total = fields.Float(
-        store=False,
+        store=True,
         compute='_compute_get_price_total',
-        string='Total Cost',
-        groups='business_requirement_deliverable_cost.'
-        'group_business_requirement_cost_control',
+        string='Total Cost'
     )
+    partner_id = fields.Many2one(
+        'res.partner',
+        related='business_requirement_deliverable_id.'
+        'business_requirement_id.partner_id',
+        string='Parter ID Related',
+        readonly=True,
+    )
+
+    @api.multi
+    def _set_sales_price(self):
+        for resource in self:
+            pricelist_id = resource._get_pricelist()
+            resource.sale_price_unit = resource.product_id.lst_price
+            if pricelist_id and resource.partner_id \
+                    and resource.uom_id:
+                product = resource.product_id.with_context(
+                    lang=resource.partner_id.lang,
+                    partner=resource.partner_id.id,
+                    quantity=resource.qty,
+                    pricelist=pricelist_id.id,
+                    uom=resource.uom_id.id,
+                )
+                resource.sale_price_unit = product.price
+
+    @api.multi
+    def _set_cost_price(self):
+        for resource in self:
+            qty_uom = 0
+            product_uom = self.env['product.uom']
+            if resource.qty != 0:
+                qty_uom = product_uom._compute_qty(
+                    resource.uom_id.id,
+                    resource.qty,
+                    resource.product_id.uom_id.id
+                ) / resource.qty
+            resource.unit_price = resource.product_id.standard_price * qty_uom
 
     @api.multi
     @api.depends('unit_price', 'qty')
@@ -44,163 +73,148 @@ class BusinessRequirementResource(models.Model):
             resource.sale_price_total = resource.sale_price_unit * resource.qty
 
     @api.multi
-    def _get_partner(self):
-        self.ensure_one()
-        br_id = br_deliverable = False
-        if self.business_requirement_deliverable_id.id:
-            br_deliverable = self.business_requirement_deliverable_id
-        if br_deliverable.business_requirement_id.id:
-            br_id = br_deliverable.business_requirement_id
-        if br_id and br_id.partner_id:
-            return br_id.partner_id
-        else:
-            return False
-
-    @api.multi
     def _get_pricelist(self):
         self.ensure_one()
-        partner_id = self._get_partner()
-        if partner_id:
-            if partner_id.property_product_pricelist:
-                return partner_id.property_product_pricelist
+        if self.partner_id:
+            return (
+                self.partner_id.property_product_estimation_pricelist or
+                self.partner_id.property_product_pricelist)
         else:
             return False
 
     @api.multi
     @api.onchange('product_id')
     def product_id_change(self):
+        self.ensure_one()
         super(BusinessRequirementResource, self).product_id_change()
-        unit_price = self.product_id.standard_price
-        pricelist_id = self._get_pricelist()
-        partner_id = self._get_partner()
-        sale_price_unit = self.product_id.list_price
-        if pricelist_id and partner_id and self.uom_id:
-            product = self.product_id.with_context(
-                lang=partner_id.lang,
-                partner=partner_id.id,
-                quantity=self.qty,
-                pricelist=pricelist_id.id,
-                uom=self.uom_id.id,
-            )
-            sale_price_unit = product.list_price
-            unit_price = product.standard_price
-
-        self.unit_price = unit_price
-        self.sale_price_unit = sale_price_unit
+        self._set_sales_price()
+        self._set_cost_price()
 
     @api.multi
     @api.onchange('uom_id', 'qty')
     def product_uom_change(self):
-        qty_uom = 0
-        unit_price = self.unit_price
-        sale_price_unit = self.product_id.list_price
-        pricelist = self._get_pricelist()
-        partner_id = self._get_partner()
-        product_uom = self.env['product.uom']
-
-        if self.qty != 0:
-            qty_uom = product_uom._compute_qty(
-                self.uom_id.id,
-                self.qty,
-                self.product_id.uom_id.id
-            ) / self.qty
-
-        if pricelist:
-            product = self.product_id.with_context(
-                lang=partner_id.lang,
-                partner=partner_id.id,
-                quantity=self.qty,
-                pricelist=pricelist.id,
-                uom=self.uom_id.id,
-            )
-            unit_price = product.standard_price
-            sale_price_unit = product.list_price
-
-        self.unit_price = unit_price * qty_uom
-        self.sale_price_unit = sale_price_unit * qty_uom
+        self.ensure_one()
+        # Calculte the sales_price_unit
+        self._set_sales_price()
+        # Calculate the unit_price
+        self._set_cost_price()
 
 
 class BusinessRequirementDeliverable(models.Model):
     _inherit = "business.requirement.deliverable"
 
-    unit_price = fields.Float(
-        groups='business_requirement_deliverable_cost.'
-        'group_business_requirement_estimation',
+    unit_price = fields.Float()
+    price_total = fields.Float()
+    resource_task_total = fields.Float(
+        compute='_compute_resource_task_total',
+        string='Total tasks',
+        store=True
     )
-    price_total = fields.Float(
-        groups='business_requirement_deliverable_cost.'
-        'group_business_requirement_estimation',
+    resource_procurement_total = fields.Float(
+        compute='_compute_resource_procurement_total',
+        string='Total procurement',
+        store=True
     )
+    gross_profit = fields.Float(
+        string='Estimated Gross Profit',
+        compute='_compute_gross_profit',
+        store=True
+    )
+
+    @api.multi
+    @api.depends('resource_ids', 'resource_ids.price_total')
+    def _compute_resource_task_total(self):
+        for rec in self:
+            rec.resource_task_total = sum(
+                rec.mapped('resource_ids').filtered(
+                    lambda r: r.resource_type == 'task').mapped(
+                    'price_total'))
+
+    @api.multi
+    @api.depends('resource_ids', 'resource_ids.price_total')
+    def _compute_resource_procurement_total(self):
+        for rec in self:
+            rec.resource_procurement_total = sum(
+                rec.mapped('resource_ids').filtered(
+                    lambda r: r.resource_type == 'procurement').mapped(
+                    'price_total'))
+
+    @api.multi
+    @api.depends(
+        'price_total',
+        'resource_task_total',
+        'resource_procurement_total')
+    def _compute_gross_profit(self):
+        for rec in self:
+            rec.gross_profit = rec.price_total - \
+                rec.resource_task_total - rec.resource_procurement_total
 
     @api.multi
     def action_button_update_estimation(self):
         for deliverable in self:
             if deliverable.resource_ids:
                 for resource in deliverable.resource_ids:
-                    pricelist_id = resource._get_pricelist()
-                    partner_id = resource._get_partner()
-                    resource.sale_price_unit = resource.product_id.lst_price
-                    if pricelist_id and partner_id and resource.uom_id:
-                        product = resource.product_id.with_context(
-                            lang=partner_id.lang,
-                            partner=partner_id.id,
-                            quantity=resource.qty,
-                            pricelist=pricelist_id.id,
-                            uom=resource.uom_id.id,
-                        )
-                        resource.sale_price_unit = product.price
+                    resource._set_sales_price()
+                    resource._set_cost_price()
+
+    @api.multi
+    def action_button_update_total_revenue(self):
+        self.sale_price_unit = sum(self.resource_ids.
+                                   mapped('sale_price_total'))
 
 
 class BusinessRequirement(models.Model):
     _inherit = "business.requirement"
 
-    total_revenue = fields.Float(
-        store=False,
-        groups='business_requirement_deliverable_cost.'
-        'group_business_requirement_estimation',
-    )
     resource_task_total = fields.Float(
         compute='_compute_resource_task_total',
         string='Total tasks',
-        store=False,
-        groups='business_requirement_deliverable_cost.'
-        'group_business_requirement_cost_control',
+        store=True
     )
     resource_procurement_total = fields.Float(
         compute='_compute_resource_procurement_total',
         string='Total procurement',
-        store=False,
-        groups='business_requirement_deliverable_cost.'
-        'group_business_requirement_cost_control',
+        store=True
     )
     gross_profit = fields.Float(
         string='Estimated Gross Profit',
         compute='_compute_gross_profit',
-        groups='business_requirement_deliverable_cost.'
-        'group_business_requirement_cost_control',
+        store=True,
+    )
+    rl_total_cost = fields.Float(
+        'RL Total Cost',
+        compute='_compute_rl_total_cost'
     )
 
     @api.multi
-    @api.depends('deliverable_lines')
+    @api.depends('deliverable_lines.resource_ids.price_total')
+    def _compute_rl_total_cost(self):
+        for r in self:
+            for dl in r.deliverable_lines:
+                r.rl_total_cost += sum(
+                    rl.price_total for rl in dl.resource_ids)
+
+    @api.multi
+    @api.depends('deliverable_lines', 'deliverable_lines.resource_ids',
+                 'deliverable_lines.resource_ids.price_total')
     def _compute_resource_task_total(self):
         for br in self:
             if br.deliverable_lines:
-                br.resource_task_total = sum(
-                    br.mapped('deliverable_lines').mapped(
-                        'resource_ids').filtered(
-                        lambda r: r.resource_type == 'task').mapped(
-                            'price_total'))
+                br.resource_task_total =\
+                    sum(br.mapped('deliverable_lines').mapped('resource_ids')
+                        .filtered(lambda r: r.resource_type == 'task')
+                        .mapped('price_total'))
 
     @api.multi
-    @api.depends('deliverable_lines')
+    @api.depends('deliverable_lines', 'deliverable_lines.resource_ids',
+                 'deliverable_lines.resource_ids.price_total')
     def _compute_resource_procurement_total(self):
         for br in self:
             if br.deliverable_lines:
-                br.resource_procurement_total = sum(
-                    br.mapped('deliverable_lines').mapped(
-                        'resource_ids').filtered(
-                        lambda r: r.resource_type == 'procurement').mapped(
-                        'price_total'))
+                br.resource_procurement_total =\
+                    sum(br.mapped('deliverable_lines').mapped('resource_ids')
+                        .filtered(lambda r: r.resource_type == 'procurement')
+                        .mapped('price_total'))
 
     @api.multi
     @api.depends(
@@ -209,5 +223,7 @@ class BusinessRequirement(models.Model):
         'resource_procurement_total')
     def _compute_gross_profit(self):
         for br in self:
-            br.gross_profit = br.total_revenue - \
-                br.resource_task_total - br.resource_procurement_total
+            br.gross_profit = (
+                br.total_revenue -
+                br.resource_task_total -
+                br.resource_procurement_total)

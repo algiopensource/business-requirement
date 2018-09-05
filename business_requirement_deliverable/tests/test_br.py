@@ -58,40 +58,42 @@ class BusinessRequirementTestCase(common.TransactionCase):
 
         vals = {
             'description': ' test',
+        }
+        self.br = self.env['business.requirement'].create(vals)
+        self.br.write({
             'deliverable_lines': [
                 (0, 0, {'name': 'deliverable line1', 'qty': 1.0,
-                        'unit_price': 900, 'uom_id': 1,
+                        'sale_price_unit': 900, 'uom_id': 1,
+                        'business_requirement_id': self.br.id,
                         'resource_ids': [
                             (0, 0, {
                                 'name': 'Resource Line1',
                                 'product_id': self.productA.id,
                                 'qty': 100,
                                 'uom_id': self.uom_hours.id,
-                                'unit_price': 500,
                                 'resource_type': 'task',
                                 'user_id': self.user.id,
+                                'business_requirement_id': self.br.id
                             }),
                             (0, 0, {
                                 'name': 'Resource Line1',
                                 'product_id': self.productC.id,
                                 'qty': 100,
                                 'uom_id': self.uom_hours.id,
-                                'unit_price': 500,
                                 'resource_type': 'task',
                                 'user_id': self.user.id,
+                                'business_requirement_id': self.br.id
                             })
                         ]
                         }),
                 (0, 0, {'name': 'deliverable line2', 'qty': 1.0,
-                        'unit_price': 1100, 'uom_id': 1}),
+                        'sale_price_unit': 1100, 'uom_id': 1}),
                 (0, 0, {'name': 'deliverable line3', 'qty': 1.0,
-                        'unit_price': 1300, 'uom_id': 1}),
+                        'sale_price_unit': 1300, 'uom_id': 1}),
                 (0, 0, {'name': 'deliverable line4', 'qty': 1.0,
-                        'unit_price': 1500, 'uom_id': 1,
+                        'sale_price_unit': 1500, 'uom_id': 1,
                         }),
-            ],
-        }
-        self.br = self.env['business.requirement'].create(vals)
+            ]})
 
     def test_get_cost_total(self):
         cost_total = self.br.total_revenue
@@ -123,8 +125,7 @@ class BusinessRequirementTestCase(common.TransactionCase):
     def test_resource_product_id_change(self):
         resource = self.env['business.requirement.resource'].search([
             ('product_id', '=', self.productA.id)])[0]
-
-        resource.write({'product_id': self.productB.id})
+        resource.write({'product_id': self.productB.id, 'name': ''})
         resource.product_id_change()
 
         self.assertEqual(
@@ -134,12 +135,44 @@ class BusinessRequirementTestCase(common.TransactionCase):
         self.assertEqual(
             resource.uom_id.id, self.productB.uom_id.id)
 
+    def test_resource_product_id_change_description_sale(self):
+        resource = self.env['business.requirement.resource'].search([
+            ('product_id', '=', self.productA.id)])[0]
+        self.productB.write({
+            'description_sale': 'Sales Description Product B'})
+        resource.write({'product_id': self.productB.id, 'name': ''})
+        resource.product_id_change()
+        self.assertTrue(self.productB.description_sale in resource.name)
+
+    def test_resource_fields_view_get(self):
+        resource = self.env['business.requirement.resource'].search([
+            ('product_id', '=', self.productA.id)])[0]
+        resource.fields_view_get(False, 'tree')
+        self.br.deliverable_lines[0].fields_view_get(False, 'form')
+
+    def test_compute_business_requirement_dl_rl(self):
+        self.br._compute_dl_count()
+        self.br._compute_rl_count()
+
+    def test_open_business_requirement_dl_rl(self):
+        self.br.open_deliverable_line()
+        self.br.open_resource_line()
+
+    def test_compute_dl_total_revenue(self):
+        for r in self.br:
+            dl_total_revenue = sum(dl.price_total for dl in
+                                   r.deliverable_lines)
+        self.assertEqual(dl_total_revenue, r.dl_total_revenue)
+
     def test_compute_get_currency(self):
+        self.br.partner_id = False
+        self.br._compute_get_currency()
+        if not self.br.partner_id:
+            self.br.deliverable_lines[0]._compute_get_currency()
         self.partner = self.env['res.partner'].create({
             'name': 'Your company test',
             'email': 'your.company@your-company.com',
             'customer': True,
-            'company_type': 'company',
         })
         self.br.write({'partner_id': self.partner.id})
         self.br._compute_get_currency()
@@ -149,11 +182,12 @@ class BusinessRequirementTestCase(common.TransactionCase):
             self.br.currency_id, currency_id)
 
     def test_deliverable_compute_get_currency(self):
+        if not self.br.partner_id:
+            self.br.deliverable_lines[0]._compute_get_currency()
         self.partner = self.env['res.partner'].create({
             'name': 'Your company test',
             'email': 'your.company@your-company.com',
             'customer': True,
-            'company_type': 'company',
         })
         self.br.write({'partner_id': self.partner.id})
         partner_id = self.br.partner_id
@@ -170,12 +204,17 @@ class BusinessRequirementTestCase(common.TransactionCase):
                     resource.resource_type_change()
                     self.assertEqual(resource.user_id.id, False)
 
+    def test_uom_resource_type_change(self):
+        for line in self.br.deliverable_lines:
+            for resource in line.resource_ids:
+                resource.write({'resource_type': 'task'})
+                resource.resource_type_change()
+
     def test_get_pricelist(self):
         self.partner = self.env['res.partner'].create({
             'name': 'Your company test',
             'email': 'your.company@your-company.com',
             'customer': True,
-            'company_type': 'company',
         })
         self.br.write({'partner_id': self.partner.id})
         for line in self.br.deliverable_lines:
@@ -186,19 +225,19 @@ class BusinessRequirementTestCase(common.TransactionCase):
 
     def test_product_id_change(self):
         for line in self.br.deliverable_lines:
-            line.write({'product_id': self.productA.id})
+            line.write({'product_id': self.productA.id, 'name': ''})
             description = ''
-            unit_price = 0
+            sale_price_unit = 0
             product = self.productA
 
             if product:
                 description = product.name_get()[0][1]
-                unit_price = product.list_price
+                sale_price_unit = product.list_price
 
             if product.description_sale:
                 description += '\n' + product.description_sale
 
-            unit_price = line.product_id.list_price
+            sale_price_unit = line.product_id.list_price
             pricelist = line._get_pricelist()
 
             if pricelist:
@@ -209,7 +248,35 @@ class BusinessRequirementTestCase(common.TransactionCase):
                     pricelist=pricelist.id,
                     uom=line.uom_id.id,
                 )
-                unit_price = product.price
+                sale_price_unit = product.price
+
+            line.product_id_change()
+            self.assertEqual(line.name, description)
+            self.assertEqual(line.uom_id.id, self.productA.uom_id.id)
+            self.assertEqual(line.sale_price_unit, sale_price_unit)
+
+    def test_product_id_change_with_pricelist(self):
+        self.partner = self.env['res.partner'].create({
+            'name': 'Your company test',
+            'email': 'your.company@your-company.com',
+            'customer': True,
+        })
+        self.br.write({'partner_id': self.partner.id})
+        for line in self.br.deliverable_lines:
+            line.write({'product_id': self.productA.id})
+            description = ''
+            sale_price_unit = 0
+            product = self.productA
+
+            if product:
+                description = product.name_get()[0][1]
+                sale_price_unit = product.list_price
+
+            if product.description_sale:
+                description += '\n' + product.description_sale
+
+            sale_price_unit = line.product_id.list_price
+            pricelist = line._get_pricelist()
 
             if pricelist:
                 product = line.product_id.with_context(
@@ -219,32 +286,47 @@ class BusinessRequirementTestCase(common.TransactionCase):
                     pricelist=pricelist.id,
                     uom=line.uom_id.id,
                 )
-                unit_price = product.price
+                sale_price_unit = product.price
 
             line.product_id_change()
-            self.assertEqual(line.name, description)
             self.assertEqual(line.uom_id.id, self.productA.uom_id.id)
-            self.assertEqual(line.unit_price, unit_price)
+            self.assertEqual(line.sale_price_unit, sale_price_unit)
+
+    def test_product_id_change_description_sale(self):
+        self.productA.write({
+            'description_sale': 'Sales Description Product A'})
+        for line in self.br.deliverable_lines:
+            if not line.name:
+                line.write({'product_id': self.productA.id})
+                line.product_id_change()
+                self.assertTrue(
+                    self.productA.description_sale in line.name)
 
     def test_product_uom_change(self):
-        self.uom_id = self.env['product.uom'].search([('id', '=', 2)])
         for line in self.br.deliverable_lines:
             line.write({'product_id': self.productA.id})
             line.product_id_change()
-            line.write({'product_id': self.uom_id.id})
-            self.unit_price = line.unit_price
+            line.write({'uom_id': self.uom_days.id})
+            self.sale_price_unit = line.sale_price_unit
             line.product_uom_change()
-            self.assertTrue(line.unit_price > self.unit_price)
+
+            self.assertEqual(line.sale_price_unit, self.sale_price_unit)
 
     def test_partner_id_change(self):
         self.partner = self.env['res.partner'].create({
             'name': 'Your company test',
             'email': 'your.company@your-company.com',
             'customer': True,
-            'company_type': 'company',
         })
         self.br.write({'partner_id': self.partner.id})
         try:
             self.br.partner_id_change()
         except UserError, e:
             self.assertEqual(type(e), UserError)
+
+    def test_business_requirement_id_change(self):
+        for line in self.br.deliverable_lines:
+            line.business_requirement_id_change()
+            for resource in line.resource_ids:
+                self.assertEqual(line.business_requirement_id,
+                                 resource.business_requirement_id)
